@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import sys
 import unittest
 
@@ -30,6 +31,7 @@ from av_lint import lint  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 MASTER_PROMPT = os.path.join(ROOT, "agent", "AUTHENTIC_VOICE.md")
+PORTABLE_PROMPT = os.path.join(ROOT, "agent", "AUTHENTIC_VOICE_PORTABLE.md")
 SYSTEM_PROMPT = os.path.join(ROOT, "agent", "SYSTEM_PROMPT.txt")
 INTAKE = os.path.join(ROOT, "agent", "INTAKE.md")
 CANONICAL_SKILL = os.path.join(ROOT, "skills", "authentic-voice", "SKILL.md")
@@ -114,7 +116,7 @@ class TestLexiconSync(unittest.TestCase):
 class TestPracticeWhatYouPreach(unittest.TestCase):
     """The framework bans em dashes in copy. Its own files must comply."""
 
-    FILES = [MASTER_PROMPT, SYSTEM_PROMPT, INTAKE, CANONICAL_SKILL, README]
+    FILES = [MASTER_PROMPT, PORTABLE_PROMPT, SYSTEM_PROMPT, INTAKE, CANONICAL_SKILL, README]
 
     def test_no_em_or_en_dashes_in_framework_documents(self):
         for path in self.FILES:
@@ -257,6 +259,139 @@ class TestEvals(unittest.TestCase):
     def test_ids_are_unique(self):
         ids = [ev["id"] for ev in self.data["evals"]]
         self.assertEqual(len(ids), len(set(ids)))
+
+
+def split_sections(text):
+    """Map heading line -> body text, for structural comparison."""
+    parts, name, buf = {}, "PREAMBLE", []
+    for line in text.splitlines(True):
+        if re.match(r"^#{1,3} ", line):
+            parts[name] = "".join(buf)
+            name, buf = line.strip(), []
+        else:
+            buf.append(line)
+    parts[name] = "".join(buf)
+    return parts
+
+
+class TestPortableEdition(unittest.TestCase):
+    """The portable edition is generated, never hand-edited. These tests are
+    what make 'identical in every rule' a checked statement instead of a claim."""
+
+    # The only sections permitted to differ, and the only headings permitted to
+    # be renamed. Anything else appearing here means a rule drifted between
+    # editions, which is the failure this whole design exists to prevent.
+    ALLOWED_BODY_DIFFS = {
+        "### 9.1 Lexicon",            # preamble drops the linter/CI reference
+        "## 11. PORTABILITY",         # local-model guidance points at 7.2, not a script
+        "## 12. WHEN NOT TO USE THIS",  # trailing section carries the footer
+    }
+    ALLOWED_RENAMES = {
+        "# AUTHENTIC VOICE : Master Agent Prompt",
+        "### 7.2 Machine verification (optional, recommended)",
+    }
+
+    def setUp(self):
+        self.master = read(MASTER_PROMPT)
+        self.portable = read(PORTABLE_PROMPT)
+
+    def test_portable_edition_exists(self):
+        self.assertTrue(os.path.isfile(PORTABLE_PROMPT))
+
+    def test_portable_is_regenerable_and_current(self):
+        # If the master changed and nobody re-ran the generator, fail here
+        # rather than shipping two editions that disagree.
+        proc = subprocess.run(
+            [sys.executable, os.path.join(ROOT, "tools", "make_portable.py"), "--check"],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+
+    def test_only_declared_sections_differ(self):
+        a, b = split_sections(self.master), split_sections(self.portable)
+        shared = [k for k in a if k in b]
+        differing = {k for k in shared if a[k] != b[k]}
+        self.assertEqual(differing, self.ALLOWED_BODY_DIFFS,
+                         "an undeclared section differs between editions")
+
+    def test_only_declared_headings_were_renamed(self):
+        a, b = split_sections(self.master), split_sections(self.portable)
+        self.assertEqual({k for k in a if k not in b}, self.ALLOWED_RENAMES)
+
+    def test_rule_bearing_sections_are_byte_identical(self):
+        a, b = split_sections(self.master), split_sections(self.portable)
+        for section in ("## 1. HARD CONSTRAINTS", "## 4. THE FACT LEDGER",
+                        "## 5. REGISTER DIALS", "## 6. CHANNEL PROFILES",
+                        "### 6.1 Casual social scope note", "### 7.1 Blocking checks",
+                        "## 8. OUTPUT CONTRACT", "### 9.2 Structural tells",
+                        "### 9.3 Punctuation tells"):
+            with self.subTest(section=section):
+                self.assertIn(section, a)
+                self.assertIn(section, b)
+                self.assertEqual(a[section], b[section])
+
+    def test_lexicon_blocks_are_byte_identical(self):
+        grab = lambda t: re.search(r"```text\n(.*?)\n```", t, re.DOTALL).group(1)
+        self.assertEqual(grab(self.master), grab(self.portable))
+
+    def test_portable_lexicon_still_matches_the_linter(self):
+        self.assertEqual(sorted(parse_lexicon_block(self.portable, "banned lexicon")),
+                         sorted(av_lint.BANNED))
+        self.assertEqual(sorted(parse_lexicon_block(self.portable, "density tells")),
+                         sorted(av_lint.SUSPECT))
+
+    def test_portable_has_no_external_references(self):
+        # The whole point: a reader with only this file has no dead instructions.
+        for token in ("tools/", ".py", "research-papers-index", "the repository ships"):
+            with self.subTest(token=token):
+                self.assertNotIn(token, self.portable.lower())
+
+    def test_portable_keeps_all_worked_examples(self):
+        self.assertEqual(self.portable.count("*After"), self.master.count("*After"))
+        self.assertEqual(self.portable.count("*Before:*"), self.master.count("*Before:*"))
+
+    def test_portable_examples_still_pass_their_profiles(self):
+        heading = re.compile(r"^###\s+[A-Z]\..*\(profile:\s*(\w+)\)\s*$")
+        marker = re.compile(r"^\*After\b")
+        capture, current, profile, checked = False, [], None, 0
+        for line in self.portable.splitlines():
+            found = heading.match(line)
+            if found:
+                profile = found.group(1)
+                continue
+            if marker.match(line):
+                capture, current = True, []
+                continue
+            if capture:
+                if line.startswith(">"):
+                    current.append(line.lstrip("> ").rstrip())
+                elif current:
+                    with self.subTest(profile=profile):
+                        self.assertTrue(lint("\n".join(current), profile=profile)["passed"])
+                    checked += 1
+                    capture, current = False, []
+        self.assertGreaterEqual(checked, 3)
+
+    def test_generator_refuses_when_an_anchor_stops_matching(self):
+        # Stress case: someone edits the master so a transform anchor no longer
+        # applies. The generator must abort loudly, not emit a partial rewrite.
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "make_portable", os.path.join(ROOT, "tools", "make_portable.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        with self.assertRaises(SystemExit):
+            mod.build("# a document with none of the expected anchors in it\n")
+
+    def test_generator_audit_catches_a_reintroduced_reference(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "make_portable", os.path.join(ROOT, "tools", "make_portable.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        self.assertTrue(mod.audit("run python3 tools/av_lint.py now"))
+        self.assertTrue(mod.audit("a line with an em dash — here"))
+        self.assertEqual(mod.audit("clean portable text with no references"), [])
 
 
 class TestNumericClaims(unittest.TestCase):

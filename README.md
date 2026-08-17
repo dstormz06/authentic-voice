@@ -7,7 +7,8 @@ It ships as four things you can use independently:
 
 | Artifact | What it is | Use it when |
 |---|---|---|
-| `agent/AUTHENTIC_VOICE.md` | The full master prompt. Model-agnostic, self-contained. | You want a standalone agent. Paste it as a system prompt anywhere. |
+| `agent/AUTHENTIC_VOICE.md` | The full master prompt. Model-agnostic, self-contained. | You have the repository and can run the checker. |
+| `agent/AUTHENTIC_VOICE_PORTABLE.md` | The same prompt, generated, with no repository references. | You are handing the prompt to someone who has only that file. |
 | `agent/SYSTEM_PROMPT.txt` | The enforcement core, condensed. | Your system-prompt budget is small. |
 | `agent/INTAKE.md` | The fact-gathering questionnaire. | Before writing anything for a real person. |
 | `skills/authentic-voice/SKILL.md` | Claude Code / Amp / opencode skill. | You want it to load automatically on relevant requests. |
@@ -28,6 +29,20 @@ residue in and then get out of the way.
 
 **As a standalone agent**, paste `agent/AUTHENTIC_VOICE.md` into any model's system prompt,
 custom instructions, project or Gem. Then ask for the copy you want.
+
+**Handing it to someone else**, send `agent/AUTHENTIC_VOICE_PORTABLE.md` instead. It is
+generated from the master by `tools/make_portable.py` and is identical in every rule,
+constraint, dial, channel profile, lexicon entry and worked example. The only difference is
+that it never instructs the reader to run a script from a repository they may not have: the
+optional linter section becomes a manual counting procedure, and the guidance for small local
+models points at that procedure rather than at a file. The test suite proves the two editions
+differ in exactly three section bodies and two headings, and nowhere else.
+
+```bash
+python3 tools/make_portable.py          # regenerate after editing the master
+python3 tools/make_portable.py --check  # fail if the committed copy is stale
+python3 tools/make_portable.py --diff   # show pending changes
+```
 
 **As a skill**, the `skills/authentic-voice/SKILL.md` file loads automatically on requests
 like "make this sound human" or "write my about page". Mirrors for `.claude/`, `.amp/` and
@@ -70,7 +85,7 @@ person. Those are the checks that matter most, and they stay human.
 
 ```bash
 python3 tools/test_av_lint.py        # 64 tests: every check, positive and negative
-python3 tools/test_framework_sync.py # 25 tests: framework integrity, see below
+python3 tools/test_framework_sync.py # 37 tests: framework integrity, see below
 ```
 
 `test_av_lint.py` gives each check a fixture that must trip it and a fixture that must not,
@@ -86,6 +101,9 @@ so no check can rot into a no-op or a false-positive machine.
 - Every eval declares assertions and a lint profile.
 - The paper count claimed in this README equals the number of PDFs on disk.
 - No file promises an outcome against an AI detector.
+- The portable edition is current, contains no repository references, and differs
+  from the master only in the three section bodies and two headings declared in
+  `tools/make_portable.py`.
 
 ### Measured effect on the sample corpus
 
@@ -139,15 +157,17 @@ eval 5 tests for it.
 
 ```
 agent/
-  AUTHENTIC_VOICE.md      master prompt, portable, self-contained
+  AUTHENTIC_VOICE.md      master prompt, self-contained
+  AUTHENTIC_VOICE_PORTABLE.md  generated, zero repository references
   SYSTEM_PROMPT.txt       condensed enforcement core
   INTAKE.md               fact-gathering questionnaire
 skills/authentic-voice/   canonical skill
 .claude/ .amp/ .opencode/ byte-identical mirrors
 tools/
   av_lint.py              the checker
+  make_portable.py        derives the portable edition from the master
   test_av_lint.py         64 tests over the checker
-  test_framework_sync.py  25 tests over the framework itself
+  test_framework_sync.py  37 tests over the framework itself
 evals/evals.json          6 evals with explicit assertions
 research papers/          4 source PDFs
 research-papers-index.md  index, licences, findings
