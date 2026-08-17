@@ -7,7 +7,8 @@ It ships as four things you can use independently:
 
 | Artifact | What it is | Use it when |
 |---|---|---|
-| `agent/AUTHENTIC_VOICE.md` | The full master prompt. Model-agnostic, self-contained. | You have the repository and can run the checker. |
+| `agent/PLAIN_WRITING.md` | **Work-safe prompt.** Plain-language writing for status updates, proposals, release notes, reviews, bios. No slang, no casual-social register, no AI-detection framing. | Writing at work, or under your own name. Start here. |
+| `agent/AUTHENTIC_VOICE.md` | The personal-voice master prompt. Informal register, casual-social rules. | Personal sites and hobby projects only. See the scope warning below. |
 | `agent/AUTHENTIC_VOICE_PORTABLE.md` | The same prompt, generated, with no repository references. | You are handing the prompt to someone who has only that file. |
 | `agent/SYSTEM_PROMPT.txt` | The enforcement core, condensed. | Your system-prompt budget is small. |
 | `agent/INTAKE.md` | The fact-gathering questionnaire. | Before writing anything for a real person. |
@@ -57,9 +58,10 @@ python3 tools/av_lint.py draft.md --profile strict --convention '^[^A-Z]*$'
 python3 tools/av_lint.py draft.md --json
 ```
 
-Exit code 0 means the mechanical checks passed. Profiles are `strict` (personal site, bio,
-tagline), `standard` (README, longer prose), `discord` (casual social) and `brand` (company
-copy).
+Exit code 0 means the mechanical checks passed. Profiles are `professional` (work writing:
+status updates, proposals, release notes, reviews, bios), `strict` (personal site, bio,
+tagline), `standard` (README, longer prose), `brand` (company copy) and `discord` (casual
+social).
 
 ## What the linter checks
 
@@ -68,10 +70,11 @@ copy).
 | `banned-lexicon` | 76 marketing and AI-register phrases | yes |
 | `formulaic-structure` | "whether you're X or Y", "it's not just X, it's Y", "in a world where" | yes |
 | `dash-overuse` | em and en dashes over the profile's budget | yes |
-| `burstiness` | uniform sentence rhythm, by coefficient of variation | yes |
+| `burstiness` | uniform sentence rhythm, by coefficient of variation | profile-dependent |
 | `concrete-anchors` | copy with no real date, count, tool or name in it | yes |
 | `fake-precision` | unsourced percentages and multipliers | profile-dependent |
-| `suspect-lexicon` | density of AI-favoured modifiers | over threshold |
+| `suspect-lexicon` | density of inflated modifiers | over threshold |
+| `workplace-jargon` | density of corporate filler (`circle back`, `low-hanging fruit`, 47 terms) | over threshold |
 | `quirk-stacking` | more than two competing stylistic conventions | yes |
 | `discourse-markers` | casual markers missing where the channel expects them | discord only |
 | `micro-convention` | lines that break a convention you declared | when declared |
@@ -84,8 +87,8 @@ person. Those are the checks that matter most, and they stay human.
 ## Verification
 
 ```bash
-python3 tools/test_av_lint.py        # 64 tests: every check, positive and negative
-python3 tools/test_framework_sync.py # 37 tests: framework integrity, see below
+python3 tools/test_av_lint.py        # 72 tests: every check, positive and negative
+python3 tools/test_framework_sync.py # 48 tests: framework integrity, see below
 ```
 
 `test_av_lint.py` gives each check a fixture that must trip it and a fixture that must not,
@@ -138,6 +141,24 @@ under its own licence, and no paper text is reproduced in this repository.
 across all four papers. Earlier versions of this README claimed seven papers and implied the
 sample counts combined. They do not, and they did not.
 
+## Which prompt to use
+
+**Use `agent/PLAIN_WRITING.md` for work, and for anything under your own name.** It covers
+status updates, proposals, release notes, incident writeups, performance reviews, team bios,
+announcements and personal profiles. Its rules are ordinary craft: lead with the conclusion,
+name the actor, prefer the concrete noun, keep numbers honest, cut filler.
+
+**`agent/AUTHENTIC_VOICE.md` is the personal-voice prompt, and it is not work-safe.** It
+carries a casual-social channel with slang and deliberately loose grammar, defaults toward
+self-deprecation, and is framed around research on AI-text detection. That framing is fine
+for a hobby homepage and wrong for a workplace: a bio that undercuts your own competence
+circulates, and a tool that reads as detector evasion is not something to have near your
+name professionally. Its register dials and eval 5 limit the damage, but the safer answer at
+work is to use the other file.
+
+The two do not share text. `PLAIN_WRITING.md` is a separate artifact with its own rules,
+examples and audit gate, not a filtered copy.
+
 ## Scope and limits
 
 This framework produces copy that reads as human. It makes **no claim about the behaviour of
@@ -157,7 +178,8 @@ eval 5 tests for it.
 
 ```
 agent/
-  AUTHENTIC_VOICE.md      master prompt, self-contained
+  PLAIN_WRITING.md        work-safe prompt, self-contained
+  AUTHENTIC_VOICE.md      personal-voice prompt, self-contained
   AUTHENTIC_VOICE_PORTABLE.md  generated, zero repository references
   SYSTEM_PROMPT.txt       condensed enforcement core
   INTAKE.md               fact-gathering questionnaire
@@ -166,8 +188,8 @@ skills/authentic-voice/   canonical skill
 tools/
   av_lint.py              the checker
   make_portable.py        derives the portable edition from the master
-  test_av_lint.py         64 tests over the checker
-  test_framework_sync.py  37 tests over the framework itself
+  test_av_lint.py         72 tests over the checker
+  test_framework_sync.py  48 tests over the framework itself
 evals/evals.json          6 evals with explicit assertions
 research papers/          4 source PDFs
 research-papers-index.md  index, licences, findings

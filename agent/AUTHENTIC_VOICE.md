@@ -370,9 +370,9 @@ look no further, in conclusion, it's worth noting
 # density tells: individually fine, collectively a signature
 intricate, invaluable, exceptional, pivotal, crucial, vital, comprehensive,
 innovative, dynamic, versatile, profound, remarkable, noteworthy, robust, myriad,
-plethora, nuanced, meticulous, meticulously, seamless, primarily, thoroughly,
-subsequently, particularly, notably, significantly, undoubtedly, certainly,
-essentially, ultimately, arguably, furthermore, moreover, additionally, consequently
+plethora, nuanced, meticulous, meticulously, primarily, thoroughly, subsequently,
+particularly, notably, significantly, undoubtedly, certainly, essentially,
+ultimately, arguably, furthermore, moreover, additionally, consequently
 ```
 
 ### 9.2 Structural tells

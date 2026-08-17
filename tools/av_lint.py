@@ -76,10 +76,28 @@ SUSPECT = [
     "intricate", "invaluable", "exceptional", "pivotal", "crucial", "vital",
     "comprehensive", "innovative", "dynamic", "versatile", "profound",
     "remarkable", "noteworthy", "robust", "myriad", "plethora", "nuanced",
-    "meticulous", "meticulously", "seamless",
+    "meticulous", "meticulously",
     "primarily", "thoroughly", "subsequently", "particularly", "notably",
     "significantly", "undoubtedly", "certainly", "essentially", "ultimately",
     "arguably", "furthermore", "moreover", "additionally", "consequently",
+]
+
+# Tier C: workplace filler. Each is tolerable once and corrosive in bulk, so
+# these are scored by density rather than banned. Disjoint from BANNED and
+# SUSPECT by construction; a test enforces that.
+JARGON = [
+    "circle back", "touch base", "move the needle", "low-hanging fruit",
+    "boil the ocean", "at the end of the day", "going forward", "socialize the",
+    "double-click on", "take it offline", "learnings", "ideate",
+    "operationalize", "actionable insights", "value-add", "core competency",
+    "north star", "table stakes", "synergize", "drill down", "level set",
+    "loop in", "thought leadership", "mission-critical", "frictionless",
+    "turnkey", "granular", "cadence", "stakeholder buy-in", "quick win",
+    "pain point", "value proposition", "key differentiator",
+    "strategic initiative", "wheelhouse", "in the weeds",
+    "run it up the flagpole", "blue-sky", "best-of-breed", "laser-focused",
+    "hit the ground running", "think outside the box", "win-win",
+    "boots on the ground", "moving parts", "at scale", "step change",
 ]
 
 # Casual discourse markers. Presence is expected in the discord profile only.
@@ -151,22 +169,37 @@ class Profile:
     # Observed ranges: uniform LLM prose 0.05 to 0.20; varied human copy
     # 0.35 to 0.70.
     min_burstiness_cv: float
+    # Severity of a rhythm failure. Personal copy can and should carry
+    # fragments, so uniformity there is a real defect and blocks. Workplace
+    # prose is legitimately more even: measured over the samples in
+    # tools/test_av_lint.py, uniform LLM business prose sits at CV 0.09 to 0.19
+    # while terse human status updates sit at 0.24. That gap is too narrow to
+    # gate on, so the professional profile reports rhythm instead of failing it.
+    burstiness_severity: str
     min_anchors: int
     min_discourse: int
     suspect_per_200w: float
+    # Workplace filler allowed per 200 words. Set so that an isolated term in a
+    # normal-length document passes and a cluster fails: a checker that fires on
+    # every stray "quick win" gets switched off, and then catches nothing.
+    jargon_per_200w: float
     fake_precision_severity: str
     max_quirks: int
 
 
 PROFILES: Dict[str, Profile] = {
     # Personal site, bio, tagline, about page. Tightest register.
-    "strict": Profile("strict", 0.0, 0.32, 2, 0, 2.0, "error", 2),
+    "strict": Profile("strict", 0.0, 0.32, "error", 2, 0, 2.0, 2.0, "error", 2),
     # README, project blurb, changelog, longer prose.
-    "standard": Profile("standard", 1.0, 0.28, 1, 0, 3.0, "warn", 2),
+    "standard": Profile("standard", 1.0, 0.28, "error", 1, 0, 3.0, 2.0, "warn", 2),
     # Discord / casual social. Discourse markers expected, rhythm loosest.
-    "discord": Profile("discord", 0.0, 0.35, 2, 1, 2.0, "warn", 2),
+    "discord": Profile("discord", 0.0, 0.35, "error", 2, 1, 2.0, 3.0, "warn", 2),
     # Company/product copy. Lexicon and rhythm still apply; no persona rules.
-    "brand": Profile("brand", 1.0, 0.25, 1, 0, 3.0, "warn", 3),
+    "brand": Profile("brand", 1.0, 0.25, "error", 1, 0, 3.0, 1.0, "warn", 3),
+    # Workplace writing: status updates, proposals, release notes, reviews,
+    # professional bios. Filler is the dominant failure mode here, so the
+    # jargon budget is the tightest of any profile.
+    "professional": Profile("professional", 1.0, 0.20, "warn", 1, 0, 2.5, 1.0, "warn", 2),
 }
 
 DEFAULT_PROFILE = "standard"
@@ -249,6 +282,7 @@ def _phrase_pattern(phrase: str) -> re.Pattern:
 
 BANNED_PATTERNS = [(p, _phrase_pattern(p)) for p in BANNED]
 SUSPECT_PATTERNS = [(p, _phrase_pattern(p)) for p in SUSPECT]
+JARGON_PATTERNS = [(p, _phrase_pattern(p)) for p in JARGON]
 DISCOURSE_PATTERNS = [(p, _phrase_pattern(p)) for p in DISCOURSE]
 FORMULAIC_PATTERNS = [(re.compile(rx, re.IGNORECASE | re.DOTALL), label) for rx, label in FORMULAIC]
 
@@ -343,6 +377,39 @@ def check_suspect(prose: str, wc: int, prof: Profile) -> List[Finding]:
     ]
 
 
+def check_jargon(prose: str, wc: int, prof: Profile) -> List[Finding]:
+    prose = mask_quoted_mentions(prose)
+    hits: List[str] = []
+    count = 0
+    for phrase, pat in JARGON_PATTERNS:
+        n = len(pat.findall(prose))
+        if n:
+            count += n
+            hits.append("%s (x%d)" % (phrase, n))
+    if not hits:
+        return []
+    density = count * 200.0 / max(wc, 1)
+    if density <= prof.jargon_per_200w:
+        return [
+            Finding(
+                "workplace-jargon",
+                "info",
+                "%d jargon phrase(s), density %.1f per 200 words (limit %.1f)."
+                % (count, density, prof.jargon_per_200w),
+                evidence=sorted(hits),
+            )
+        ]
+    return [
+        Finding(
+            "workplace-jargon",
+            "error",
+            "Jargon density %.1f per 200 words exceeds limit %.1f. Say the plain thing."
+            % (density, prof.jargon_per_200w),
+            evidence=sorted(hits),
+        )
+    ]
+
+
 def check_formulaic(prose: str) -> List[Finding]:
     out: List[Finding] = []
     for pat, label in FORMULAIC_PATTERNS:
@@ -398,7 +465,7 @@ def check_burstiness(unit_list: Sequence[str], prof: Profile) -> List[Finding]:
     return [
         Finding(
             "burstiness",
-            "error",
+            prof.burstiness_severity,
             "Uniform rhythm: sentence-length CV %.2f over %d units, below %.2f. "
             "Mix in a fragment and a long one." % (cv, len(lengths), prof.min_burstiness_cv),
             evidence=["lengths=%s" % lengths[:20]],
@@ -626,6 +693,7 @@ def lint(raw: str, profile: str = DEFAULT_PROFILE, convention: Optional[str] = N
     findings += check_dashes(prose, wc, prof)
     findings += check_fake_precision(prose, prof)
     findings += check_suspect(prose, wc, prof)
+    findings += check_jargon(prose, wc, prof)
     findings += check_burstiness(unit_list, prof)
     findings += check_anchors(prose, prof)
     findings += check_placeholders(prose)

@@ -214,6 +214,65 @@ class TestBurstiness(unittest.TestCase):
         self.assertEqual(burst[0]["severity"], "info")
 
 
+class TestProfessionalProfile(unittest.TestCase):
+    """Workplace writing. Jargon is the dominant failure mode; rhythm is a
+    weaker signal here than on personal copy and must not block."""
+
+    # Measured CVs that set the professional threshold. Kept as fixtures so a
+    # future threshold change has to confront the evidence it was chosen from.
+    LLM_BUSINESS = (
+        "We have made considerable progress on the initiative this quarter. The team has "
+        "been working closely with stakeholders to ensure alignment. We anticipate that the "
+        "remaining work will be completed on schedule. Additional updates will be shared as "
+        "they become available. Please let us know if you have any questions."
+    )
+    HUMAN_STATUS = (
+        "The launch moves to March 3. Load testing found the eu-west cluster cannot take the "
+        "traffic.\nAdding capacity takes six weeks.\nNothing needs a decision from you "
+        "today.\nI will send the revised plan on Friday."
+    )
+
+    def test_jargon_cluster_is_an_error(self):
+        copy = ("Going forward we will circle back on the low-hanging fruit in 2026.\n"
+                "We should socialize the north star and drill down on stakeholder buy-in.\n")
+        self.assertIn("workplace-jargon", checks_firing(lint(copy, profile="professional")))
+
+    def test_single_jargon_term_in_long_copy_is_tolerated(self):
+        copy = (self.HUMAN_STATUS + "\n" + " ".join(["The report covers the quarter."] * 40)
+                + "\nOne quick win landed on Friday.\n")
+        self.assertNotIn("workplace-jargon", checks_firing(lint(copy, profile="professional")))
+
+    def test_terse_human_status_update_is_not_blocked(self):
+        report = lint(self.HUMAN_STATUS, profile="professional")
+        self.assertTrue(report["passed"], checks_firing(report))
+
+    def test_uniform_llm_prose_is_still_reported(self):
+        # Reported, not blocking: the signal is real but too weak to gate on.
+        report = lint(self.LLM_BUSINESS, profile="professional")
+        self.assertIn("burstiness", checks_firing(report, severity=("warn",)))
+        self.assertNotIn("burstiness", checks_firing(report))
+
+    def test_rhythm_still_blocks_on_personal_copy(self):
+        uniform = "\n".join(["i wrote a tool that counts the seconds for you"] * 8)
+        self.assertIn("burstiness", checks_firing(lint(uniform + "\nrust 2022\n",
+                                                       profile="strict")))
+
+    def test_banned_lexicon_still_blocks_at_work(self):
+        copy = self.HUMAN_STATUS + "\nThis will empower the team going forward.\n"
+        self.assertIn("banned-lexicon", checks_firing(lint(copy, profile="professional")))
+
+    def test_professional_has_the_tightest_jargon_budget(self):
+        prof = av_lint.PROFILES["professional"]
+        for name, other in av_lint.PROFILES.items():
+            if name != "professional":
+                with self.subTest(other=name):
+                    self.assertLessEqual(prof.jargon_per_200w, other.jargon_per_200w)
+
+    def test_jargon_quoted_mention_is_not_usage(self):
+        copy = self.HUMAN_STATUS + '\nPlease stop writing "circle back" in updates.\n'
+        self.assertNotIn("workplace-jargon", checks_firing(lint(copy, profile="professional")))
+
+
 class TestAnchors(unittest.TestCase):
     def test_vague_copy_lacks_anchors(self):
         vague = ("i do things and care about doing them well.\n"

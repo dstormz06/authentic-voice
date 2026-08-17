@@ -32,6 +32,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 MASTER_PROMPT = os.path.join(ROOT, "agent", "AUTHENTIC_VOICE.md")
 PORTABLE_PROMPT = os.path.join(ROOT, "agent", "AUTHENTIC_VOICE_PORTABLE.md")
+PLAIN_WRITING = os.path.join(ROOT, "agent", "PLAIN_WRITING.md")
 SYSTEM_PROMPT = os.path.join(ROOT, "agent", "SYSTEM_PROMPT.txt")
 INTAKE = os.path.join(ROOT, "agent", "INTAKE.md")
 CANONICAL_SKILL = os.path.join(ROOT, "skills", "authentic-voice", "SKILL.md")
@@ -116,7 +117,8 @@ class TestLexiconSync(unittest.TestCase):
 class TestPracticeWhatYouPreach(unittest.TestCase):
     """The framework bans em dashes in copy. Its own files must comply."""
 
-    FILES = [MASTER_PROMPT, PORTABLE_PROMPT, SYSTEM_PROMPT, INTAKE, CANONICAL_SKILL, README]
+    FILES = [MASTER_PROMPT, PORTABLE_PROMPT, PLAIN_WRITING, SYSTEM_PROMPT, INTAKE,
+             CANONICAL_SKILL, README]
 
     def test_no_em_or_en_dashes_in_framework_documents(self):
         for path in self.FILES:
@@ -259,6 +261,110 @@ class TestEvals(unittest.TestCase):
     def test_ids_are_unique(self):
         ids = [ev["id"] for ev in self.data["evals"]]
         self.assertEqual(len(ids), len(set(ids)))
+
+
+class TestPlainWriting(unittest.TestCase):
+    """PLAIN_WRITING.md is the work-safe prompt. It is a separate artifact, not
+    a filtered copy of the personal one, and these tests hold it to the same
+    standards plus one more: it must stay appropriate to circulate at work."""
+
+    def setUp(self):
+        self.text = read(PLAIN_WRITING)
+
+    def _quoted_blocks(self, marker):
+        out, cap, cur = [], False, []
+        for line in self.text.splitlines():
+            if line.startswith(marker):
+                cap, cur = True, []
+                continue
+            if cap:
+                if line.startswith(">"):
+                    cur.append(line.lstrip("> ").rstrip())
+                elif cur:
+                    out.append("\n".join(cur))
+                    cap, cur = False, []
+        if cur:
+            out.append("\n".join(cur))
+        return out
+
+    def test_exists_and_is_self_contained(self):
+        self.assertTrue(os.path.isfile(PLAIN_WRITING))
+        for token in ("tools/", ".py", "research-papers-index", "av_lint"):
+            with self.subTest(token=token):
+                self.assertNotIn(token, self.text.lower())
+
+    def test_lexicon_tiers_match_the_linter_exactly(self):
+        for header, expected in (("tier 1", av_lint.BANNED),
+                                 ("tier 2", av_lint.SUSPECT),
+                                 ("tier 3", av_lint.JARGON)):
+            with self.subTest(tier=header):
+                self.assertEqual(sorted(parse_lexicon_block(self.text, header)),
+                                 sorted(expected))
+
+    def test_lexicon_tiers_are_disjoint(self):
+        # An entry in two tiers is counted twice and reported twice.
+        b, s, j = set(av_lint.BANNED), set(av_lint.SUSPECT), set(av_lint.JARGON)
+        self.assertEqual(b & s, set(), "BANNED and SUSPECT overlap")
+        self.assertEqual(b & j, set(), "BANNED and JARGON overlap")
+        self.assertEqual(s & j, set(), "SUSPECT and JARGON overlap")
+
+    def test_has_four_worked_example_pairs(self):
+        self.assertEqual(len(self._quoted_blocks("*Before:*")), 4)
+        self.assertEqual(len(self._quoted_blocks("*After:*")), 4)
+
+    def test_after_examples_pass_the_professional_profile(self):
+        for i, block in enumerate(self._quoted_blocks("*After:*"), start=1):
+            with self.subTest(example=i):
+                report = lint(block, profile="professional")
+                failing = {f["check"] for f in report["findings"] if f["severity"] == "error"}
+                self.assertTrue(report["passed"], "after-example %d fails: %s" % (i, failing))
+
+    def test_before_examples_fail_the_professional_profile(self):
+        for i, block in enumerate(self._quoted_blocks("*Before:*"), start=1):
+            with self.subTest(example=i):
+                self.assertFalse(lint(block, profile="professional")["passed"],
+                                 "before-example %d unexpectedly passes" % i)
+
+    def test_no_slang_or_profanity_register(self):
+        # The whole reason this file exists. A dial for slang, profanity or
+        # self-mockery must never reappear in the register table.
+        table = re.search(r"## 5\. REGISTER DIALS(.*?)^## 6\.", self.text,
+                          re.DOTALL | re.MULTILINE)
+        self.assertIsNotNone(table, "register dial section not found")
+        rows = [ln for ln in table.group(1).splitlines() if ln.startswith("| **")]
+        self.assertTrue(rows, "no dial rows found")
+        for row in rows:
+            with self.subTest(row=row[:40]):
+                for banned_dial in ("profanity", "slang", "self-deprecation", "snark"):
+                    self.assertNotIn(banned_dial, row.lower())
+
+    def test_carries_no_casual_social_channel(self):
+        # The Discord rules are what made the original unfit to circulate.
+        # Word-boundary matching, not substring: "ngl" lives inside "single".
+        for token in ("discord", "ngl", "tbh", "idk", "lol", "dead ass", "no cap",
+                      "imperfect grammar", "misspelling"):
+            with self.subTest(token=token):
+                self.assertIsNone(
+                    re.search(r"\b%s\b" % re.escape(token), self.text, re.IGNORECASE),
+                    "casual-social register leaked in: %r" % token,
+                )
+
+    def test_makes_no_detector_claims(self):
+        forbidden = re.compile(r"(?:not\s+trigger|bypass|evade|defeat|beat)\s+"
+                               r"(?:the\s+)?ai[- ]?detect", re.IGNORECASE)
+        self.assertIsNone(forbidden.search(self.text))
+
+    def test_forbids_inventing_numbers(self):
+        # Constraint 3 is the one that matters most in a work document.
+        self.assertRegex(self.text, r"(?i)never\s+invent\s+a\s+metric")
+
+    def test_professional_profile_exists_for_it(self):
+        self.assertIn("professional", av_lint.PROFILES)
+        prof = av_lint.PROFILES["professional"]
+        # Jargon is the dominant failure mode at work, so this profile must be
+        # the strictest on it.
+        others = [p for n, p in av_lint.PROFILES.items() if n != "professional"]
+        self.assertTrue(all(prof.jargon_per_200w <= o.jargon_per_200w for o in others))
 
 
 def split_sections(text):
