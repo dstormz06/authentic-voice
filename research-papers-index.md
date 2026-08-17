@@ -51,5 +51,6 @@ Consider adding:
 - **Step 5:** Validate with the 4 evaluation assertions
 
 ---
-*Index last updated: $(date +%Y-%m-%d)*
+*Index last updated: 2026-08-17.*
 *All papers respect CC BY 4.0 or open-access licenses. No copyrighted text reproduced verbatim.*
+*Paper count on disk: 4. Any claim elsewhere in this repository must match that number; `tools/test_framework_sync.py` enforces it.*

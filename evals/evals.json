@@ -1,22 +1,101 @@
 {
   "skill_name": "authentic-voice",
+  "version": "2.0.0",
+  "notes": "Every eval declares the av_lint profile its output should pass and the assertions a human or grader model checks. Evals 4 through 6 cover the failure modes v1 had no coverage for: fabrication under missing facts, register overcorrection on high-stakes copy, and channel scoping of casual markers.",
   "evals": [
     {
       "id": 1,
+      "name": "personal-homepage-hero-and-about",
+      "lint_profile": "strict",
       "prompt": "Write the hero section and about blurb for my personal homepage. I'm a hobbyist Rust and Elixir developer, coding seriously since 2022, and honestly still struggling with both. I have a noisy Discord server where I talk about nothing and a blog I update every few months. Make it feel like ME, a real person, not a template. Don't invent facts I didn't give you.",
-      "expected_output": "Copy that reads as a real person: self-deprecating and specific, uses the real facts provided (Rust/Elixir hobbyist, since 2022, struggling), no marketing clichés, no invented credentials, undersells rather than oversells.",
+      "expected_output": "Copy that reads as a real person: self-deprecating and specific, built from the facts provided (Rust/Elixir hobbyist, since 2022, struggling, Discord, infrequent blog), no marketing clichés, no invented credentials, undersells rather than oversells.",
+      "assertions": [
+        "Uses at least three of the facts given (Rust/Elixir, since 2022, struggling, Discord, infrequent blog)",
+        "Introduces no specific fact the user did not supply",
+        "Contains zero entries from the banned lexicon",
+        "Contains zero em dashes and zero en dashes",
+        "Holds exactly one micro-convention across every line",
+        "Register undersells: no line would read as a boast to a stranger",
+        "Passes av_lint at profile strict"
+      ],
       "files": []
     },
     {
       "id": 2,
+      "name": "de-market-a-saas-paragraph",
+      "lint_profile": "brand",
       "prompt": "Rewrite this to sound like a human wrote it, not an LLM: \"Empowering developers to build the future. Our cutting-edge platform leverages robust, scalable infrastructure to streamline your workflow and unlock your team's full potential.\"",
-      "expected_output": "A rewrite with specific, human-sounding language that kills the confident-vague marketing register and AI tells; should not read like it could appear on any SaaS landing page.",
+      "expected_output": "A rewrite that kills the confident-vague marketing register and the AI tells, says something concrete about what the product does, and could not appear verbatim on any other company's landing page.",
+      "assertions": [
+        "Contains zero entries from the banned lexicon, except where quoted to reject them",
+        "States something concrete about what the product actually does",
+        "Adds no fictional human persona to what is company copy",
+        "Invents no metrics, customer counts or claims",
+        "Passes av_lint at profile brand"
+      ],
       "files": []
     },
     {
       "id": 3,
-      "prompt": "I'm making a small side project page for my timer tool. I built it in Rust after getting into systems programming, it tells you when pasta is done, and my branding is that it works by accident more often than not. Write the one-paragraph tagline section in my voice — dry, a little self-deprecating, definitely not corporate.",
-      "expected_output": "A personal, dry, self-deprecating tagline paragraph in the user's voice using the real details given (Rust timer, pasta, works-by-accident), free of AI copywriting clichés.",
+      "name": "side-project-tagline-dry-voice",
+      "lint_profile": "strict",
+      "prompt": "I'm making a small side project page for my timer tool. I built it in Rust after getting into systems programming, it tells you when pasta is done, and my branding is that it works by accident more often than not. Write the one-paragraph tagline section in my voice, dry, a little self-deprecating, definitely not corporate.",
+      "expected_output": "A dry, self-deprecating tagline paragraph using the real details given (Rust, systems programming, pasta timer, works by accident), free of copywriting clichés.",
+      "assertions": [
+        "Uses the real details given (Rust, pasta timer, works by accident)",
+        "Reads as dry and self-deprecating rather than promotional",
+        "Contains zero entries from the banned lexicon",
+        "Sentence lengths visibly vary",
+        "Passes av_lint at profile strict"
+      ],
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "refuses-to-fabricate-missing-facts",
+      "lint_profile": "strict",
+      "prompt": "Write my professional about page. I'm a backend engineer. That's all I want to tell you, just make it good.",
+      "expected_output": "The agent does not invent a timeline, employer, stack, location or accomplishment. It either asks a short batch of targeted questions, or delivers copy carrying visible bracketed placeholders and reports every one of them.",
+      "assertions": [
+        "Invents no year, employer, location, technology, metric or accomplishment",
+        "Either asks for the missing facts or uses visibly bracketed placeholders",
+        "Reports every unresolved placeholder back to the user",
+        "Does not silently fill gaps with plausible-sounding detail",
+        "Contains zero entries from the banned lexicon"
+      ],
+      "files": []
+    },
+    {
+      "id": 5,
+      "name": "no-register-overcorrection-on-high-stakes-copy",
+      "lint_profile": "strict",
+      "prompt": "I need a short bio for a conference speaker page. I'm a cardiac anaesthetist, 14 years in, I teach registrars, and I'm speaking about handover failures in theatre. Make it sound like a real person and not AI slop.",
+      "expected_output": "An understated, specific, human bio that stays professional. The underselling lives in the choice of facts, not in a change of register: no lowercase styling, no slang, no jokes about competence, and the clinical credibility is left intact.",
+      "assertions": [
+        "Contains no slang or casual discourse markers",
+        "Does not use all-lowercase styling or Discord register",
+        "Does not undercut clinical competence or credibility",
+        "Still avoids the banned lexicon and the confident-vague register",
+        "Uses the real facts given (14 years, teaches registrars, handover failures)",
+        "Invents no hospital, institution, qualification or publication",
+        "Passes av_lint at profile strict"
+      ],
+      "files": []
+    },
+    {
+      "id": 6,
+      "name": "casual-markers-stay-in-casual-channels",
+      "lint_profile": "discord",
+      "prompt": "Write the description for my Discord server. It's mostly people who play roguelikes, someone always argues about linux distros late at night, and it's been going since 2022. Keep it casual, it's just a server description.",
+      "expected_output": "Casual copy with natural discourse markers, specific anchors instead of broad statements, and a deliberately uneven length. Not exactly three sentences.",
+      "assertions": [
+        "Is not exactly three sentences",
+        "Includes at least one casual discourse marker used naturally",
+        "Uses specific anchors (roguelikes, linux distro arguments, since 2022) rather than broad statements like 'random chat'",
+        "Sentence lengths are visibly uneven",
+        "Contains no deliberate misspellings or broken facts",
+        "Passes av_lint at profile discord"
+      ],
       "files": []
     }
   ]
