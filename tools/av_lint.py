@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 """
-av_lint.py : deterministic checker for Authentic Voice copy.
+av_lint.py : deterministic checker for the Plain Writing rules.
 
-Machine-checkable subset of the Authentic Voice framework. It cannot judge
-whether copy is *true* or whether it sounds like a specific person. It CAN
-catch the mechanical AI tells that humans reliably do not produce at scale:
-marketing lexicon, dash overuse, uniform sentence rhythm, fake precision,
-rule-of-three scaffolding, quirk stacking, and missing concrete anchors.
+Machine-checkable subset of agent/PLAIN_WRITING.md. It catches the mechanical
+failures: marketing lexicon, workplace jargon, inflated modifiers, formulaic
+scaffolding, dash overuse, unsourced figures, uniform sentence length, stacked
+stylistic quirks, and prose with no concrete detail in it.
+
+It cannot judge whether the writing is true, whether the facts belong to the
+author, or whether the judgement is sound. Those checks stay human, and they
+are the ones that matter most.
 
 Zero dependencies. Python 3.8+. Single file on purpose: copy it anywhere.
 
 Usage:
-    python3 av_lint.py FILE [FILE ...] [--profile strict|standard|discord|brand]
-    python3 av_lint.py --stdin --profile strict < copy.md
-    python3 av_lint.py copy.md --json
-    python3 av_lint.py copy.md --convention '^[a-z]'   # assert a micro-convention
+    python3 av_lint.py FILE [FILE ...] [--profile professional|strict|standard|brand]
+    python3 av_lint.py --stdin --profile professional < draft.md
+    python3 av_lint.py draft.md --json
+    python3 av_lint.py draft.md --convention '^[a-z]'   # assert a declared convention
 
 Exit codes:
     0  no errors (warnings may be present)
@@ -100,13 +103,6 @@ JARGON = [
     "boots on the ground", "moving parts", "at scale", "step change",
 ]
 
-# Casual discourse markers. Presence is expected in the discord profile only.
-DISCOURSE = [
-    "idk", "ngl", "lol", "lmao", "fr", "tbh", "imo", "kinda", "sorta",
-    "anyway", "anyways", "so yeah", "honestly", "basically", "i guess",
-    "or whatever", "dunno", "yeah", "nah", "eh",
-]
-
 # Formulaic scaffolding. Regex, matched case-insensitively.
 FORMULAIC = [
     (r"\bwhether\s+you(?:'re|\s+are)\b.{0,80}\bor\b", "whether-you're-X-or-Y construction"),
@@ -137,7 +133,7 @@ RE_CALENDAR = re.compile(
 )
 RE_PROPER = re.compile(r"(?<![.!?]\s)(?<!^)\b[A-Z][a-z]{2,}\b", re.MULTILINE)
 RE_LOWER_TOOL = re.compile(
-    r"\b(?:rust|elixir|python|golang|discord|github|linux|css|sqlite|"
+    r"\b(?:rust|elixir|python|golang|github|linux|css|sqlite|"
     r"postgres|vim|emacs|docker|kubernetes|javascript|typescript|ruby|"
     r"haskell|zig|nix|arch|debian|ubuntu|firefox|neovim)\b",
     re.IGNORECASE,
@@ -168,16 +164,15 @@ class Profile:
     # stdev is not: it punishes short-form copy for being short.
     # Observed ranges: uniform LLM prose 0.05 to 0.20; varied human copy
     # 0.35 to 0.70.
-    min_burstiness_cv: float
+    min_rhythm_cv: float
     # Severity of a rhythm failure. Personal copy can and should carry
     # fragments, so uniformity there is a real defect and blocks. Workplace
     # prose is legitimately more even: measured over the samples in
     # tools/test_av_lint.py, uniform LLM business prose sits at CV 0.09 to 0.19
     # while terse human status updates sit at 0.24. That gap is too narrow to
     # gate on, so the professional profile reports rhythm instead of failing it.
-    burstiness_severity: str
+    rhythm_severity: str
     min_anchors: int
-    min_discourse: int
     suspect_per_200w: float
     # Workplace filler allowed per 200 words. Set so that an isolated term in a
     # normal-length document passes and a cluster fails: a checker that fires on
@@ -189,20 +184,18 @@ class Profile:
 
 PROFILES: Dict[str, Profile] = {
     # Personal site, bio, tagline, about page. Tightest register.
-    "strict": Profile("strict", 0.0, 0.32, "error", 2, 0, 2.0, 2.0, "error", 2),
+    "strict": Profile("strict", 0.0, 0.32, "error", 2, 2.0, 2.0, "error", 2),
     # README, project blurb, changelog, longer prose.
-    "standard": Profile("standard", 1.0, 0.28, "error", 1, 0, 3.0, 2.0, "warn", 2),
-    # Discord / casual social. Discourse markers expected, rhythm loosest.
-    "discord": Profile("discord", 0.0, 0.35, "error", 2, 1, 2.0, 3.0, "warn", 2),
+    "standard": Profile("standard", 1.0, 0.28, "error", 1, 3.0, 2.0, "warn", 2),
     # Company/product copy. Lexicon and rhythm still apply; no persona rules.
-    "brand": Profile("brand", 1.0, 0.25, "error", 1, 0, 3.0, 1.0, "warn", 3),
+    "brand": Profile("brand", 1.0, 0.25, "error", 1, 3.0, 1.0, "warn", 3),
     # Workplace writing: status updates, proposals, release notes, reviews,
     # professional bios. Filler is the dominant failure mode here, so the
     # jargon budget is the tightest of any profile.
-    "professional": Profile("professional", 1.0, 0.20, "warn", 1, 0, 2.5, 1.0, "warn", 2),
+    "professional": Profile("professional", 1.0, 0.20, "warn", 1, 2.5, 1.0, "warn", 2),
 }
 
-DEFAULT_PROFILE = "standard"
+DEFAULT_PROFILE = "professional"
 
 # --------------------------------------------------------------------------
 # Findings
@@ -283,7 +276,6 @@ def _phrase_pattern(phrase: str) -> re.Pattern:
 BANNED_PATTERNS = [(p, _phrase_pattern(p)) for p in BANNED]
 SUSPECT_PATTERNS = [(p, _phrase_pattern(p)) for p in SUSPECT]
 JARGON_PATTERNS = [(p, _phrase_pattern(p)) for p in JARGON]
-DISCOURSE_PATTERNS = [(p, _phrase_pattern(p)) for p in DISCOURSE]
 FORMULAIC_PATTERNS = [(re.compile(rx, re.IGNORECASE | re.DOTALL), label) for rx, label in FORMULAIC]
 
 
@@ -440,34 +432,34 @@ def check_fake_precision(prose: str, prof: Profile) -> List[Finding]:
     ]
 
 
-def check_burstiness(unit_list: Sequence[str], prof: Profile) -> List[Finding]:
+def check_rhythm(unit_list: Sequence[str], prof: Profile) -> List[Finding]:
     lengths = [len(words(u)) for u in unit_list]
     lengths = [n for n in lengths if n > 0]
     if len(lengths) < 5:
         return [
             Finding(
-                "burstiness",
+                "rhythm-variation",
                 "info",
                 "Only %d rhythm unit(s); variance not scored (needs 5)." % len(lengths),
             )
         ]
     mean = statistics.fmean(lengths)
     cv = statistics.pstdev(lengths) / mean if mean else 0.0
-    if cv >= prof.min_burstiness_cv:
+    if cv >= prof.min_rhythm_cv:
         return [
             Finding(
-                "burstiness",
+                "rhythm-variation",
                 "info",
                 "Rhythm CV %.2f over %d units (min %.2f)."
-                % (cv, len(lengths), prof.min_burstiness_cv),
+                % (cv, len(lengths), prof.min_rhythm_cv),
             )
         ]
     return [
         Finding(
-            "burstiness",
-            prof.burstiness_severity,
+            "rhythm-variation",
+            prof.rhythm_severity,
             "Uniform rhythm: sentence-length CV %.2f over %d units, below %.2f. "
-            "Mix in a fragment and a long one." % (cv, len(lengths), prof.min_burstiness_cv),
+            "Mix in a fragment and a long one." % (cv, len(lengths), prof.min_rhythm_cv),
             evidence=["lengths=%s" % lengths[:20]],
         )
     ]
@@ -522,25 +514,6 @@ def check_placeholders(prose: str) -> List[Finding]:
             "%d unresolved placeholder(s). Fill them or report every one to the author."
             % len(unique),
             evidence=unique[:12],
-        )
-    ]
-
-
-def check_discourse(prose: str, prof: Profile) -> List[Finding]:
-    if prof.min_discourse <= 0:
-        return []
-    hits = [p for p, pat in DISCOURSE_PATTERNS if pat.search(prose)]
-    if len(hits) >= prof.min_discourse:
-        return [
-            Finding("discourse-markers", "info", "%d casual marker(s) present." % len(hits),
-                    evidence=sorted(hits)[:10])
-        ]
-    return [
-        Finding(
-            "discourse-markers",
-            "error",
-            "Profile '%s' expects at least %d casual discourse marker(s); found %d."
-            % (prof.name, prof.min_discourse, len(hits)),
         )
     ]
 
@@ -694,10 +667,9 @@ def lint(raw: str, profile: str = DEFAULT_PROFILE, convention: Optional[str] = N
     findings += check_fake_precision(prose, prof)
     findings += check_suspect(prose, wc, prof)
     findings += check_jargon(prose, wc, prof)
-    findings += check_burstiness(unit_list, prof)
+    findings += check_rhythm(unit_list, prof)
     findings += check_anchors(prose, prof)
     findings += check_placeholders(prose)
-    findings += check_discourse(prose, prof)
     findings += check_uniform_openers(unit_list)
     findings += check_tricolon(prose)
     findings += check_quirk_stacking(raw, prof)

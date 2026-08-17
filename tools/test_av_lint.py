@@ -198,19 +198,19 @@ class TestFakePrecision(unittest.TestCase):
         self.assertNotIn("fake-precision", checks_firing(report))
 
 
-class TestBurstiness(unittest.TestCase):
+class TestRhythm(unittest.TestCase):
     UNIFORM = "\n".join(["i wrote a tool that counts the seconds for you"] * 8)
 
     def test_uniform_rhythm_fails(self):
-        report = lint(self.UNIFORM + "\nrust 2022 discord\n", profile="strict")
-        self.assertIn("burstiness", checks_firing(report))
+        report = lint(self.UNIFORM + "\nrust 2022 postgres\n", profile="strict")
+        self.assertIn("rhythm-variation", checks_firing(report))
 
     def test_varied_rhythm_passes(self):
-        self.assertNotIn("burstiness", checks_firing(lint(CLEAN, profile="strict")))
+        self.assertNotIn("rhythm-variation", checks_firing(lint(CLEAN, profile="strict")))
 
     def test_short_copy_is_not_scored(self):
         report = lint("i make things. rust, 2022.", profile="strict")
-        burst = [f for f in report["findings"] if f["check"] == "burstiness"]
+        burst = [f for f in report["findings"] if f["check"] == "rhythm-variation"]
         self.assertEqual(burst[0]["severity"], "info")
 
 
@@ -249,12 +249,12 @@ class TestProfessionalProfile(unittest.TestCase):
     def test_uniform_llm_prose_is_still_reported(self):
         # Reported, not blocking: the signal is real but too weak to gate on.
         report = lint(self.LLM_BUSINESS, profile="professional")
-        self.assertIn("burstiness", checks_firing(report, severity=("warn",)))
-        self.assertNotIn("burstiness", checks_firing(report))
+        self.assertIn("rhythm-variation", checks_firing(report, severity=("warn",)))
+        self.assertNotIn("rhythm-variation", checks_firing(report))
 
     def test_rhythm_still_blocks_on_personal_copy(self):
         uniform = "\n".join(["i wrote a tool that counts the seconds for you"] * 8)
-        self.assertIn("burstiness", checks_firing(lint(uniform + "\nrust 2022\n",
+        self.assertIn("rhythm-variation", checks_firing(lint(uniform + "\nrust 2022\n",
                                                        profile="strict")))
 
     def test_banned_lexicon_still_blocks_at_work(self):
@@ -311,27 +311,6 @@ class TestPlaceholders(unittest.TestCase):
 
     def test_clean_copy_reports_no_placeholders(self):
         self.assertNotIn("unresolved-placeholders", checks_firing(lint(CLEAN), severity=("warn",)))
-
-
-class TestDiscourseMarkers(unittest.TestCase):
-    def test_discord_profile_requires_casual_markers(self):
-        formal = ("the server is quiet most of the time.\n"
-                  "people show up in the evening and argue about linux distros at 2am.\n"
-                  "started it in 2022.\n"
-                  "no rules to speak of.\n"
-                  "that is the whole thing, really, nothing more to add here.\n")
-        self.assertIn("discourse-markers", checks_firing(lint(formal, profile="discord")))
-
-    def test_casual_markers_satisfy_discord_profile(self):
-        casual = ("the server is quiet most of the time, ngl.\n"
-                  "people show up in the evening and argue about linux distros at 2am.\n"
-                  "started it in 2022.\n"
-                  "no rules to speak of.\n"
-                  "that is the whole thing, really, nothing more to add here.\n")
-        self.assertNotIn("discourse-markers", checks_firing(lint(casual, profile="discord")))
-
-    def test_other_profiles_do_not_require_markers(self):
-        self.assertNotIn("discourse-markers", checks_firing(lint(CLEAN, profile="strict")))
 
 
 class TestQuirkStacking(unittest.TestCase):
@@ -447,7 +426,12 @@ class TestCli(unittest.TestCase):
         proc = self._run(["--stdin", "--json"], stdin=CLEAN)
         payload = json.loads(proc.stdout)
         self.assertIn("passed", payload)
-        self.assertEqual(payload["profile"], "standard")
+        self.assertEqual(payload["profile"], av_lint.DEFAULT_PROFILE)
+
+    def test_default_profile_is_the_work_one(self):
+        # Most drafts run through this tool are work drafts. The default should
+        # not be a personal-site ruleset.
+        self.assertEqual(av_lint.DEFAULT_PROFILE, "professional")
 
     def test_no_input_is_usage_error(self):
         self.assertEqual(self._run([]).returncode, 2)

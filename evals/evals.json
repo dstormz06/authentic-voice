@@ -1,100 +1,114 @@
 {
-  "skill_name": "authentic-voice",
-  "version": "2.0.0",
-  "notes": "Every eval declares the av_lint profile its output should pass and the assertions a human or grader model checks. Evals 4 through 6 cover the failure modes v1 had no coverage for: fabrication under missing facts, register overcorrection on high-stakes copy, and channel scoping of casual markers.",
+  "skill_name": "plain-writing",
+  "version": "1.0.0",
+  "notes": "Each eval declares the av_lint profile its output should pass and the assertions a human or grader model checks. Coverage is deliberately weighted toward the failure modes that cost the most at work: inventing facts and figures, burying the conclusion, hiding the actor behind passive voice, and turning a hedge into a commitment while cutting filler.",
   "evals": [
     {
       "id": 1,
-      "name": "personal-homepage-hero-and-about",
-      "lint_profile": "strict",
-      "prompt": "Write the hero section and about blurb for my personal homepage. I'm a hobbyist Rust and Elixir developer, coding seriously since 2022, and honestly still struggling with both. I have a noisy Discord server where I talk about nothing and a blog I update every few months. Make it feel like ME, a real person, not a template. Don't invent facts I didn't give you.",
-      "expected_output": "Copy that reads as a real person: self-deprecating and specific, built from the facts provided (Rust/Elixir hobbyist, since 2022, struggling, Discord, infrequent blog), no marketing clichés, no invented credentials, undersells rather than oversells.",
+      "name": "status-update-leads-with-the-point",
+      "lint_profile": "professional",
+      "prompt": "Write my weekly status update. Search is finished and ships Thursday. The import job still times out on files over 200MB and I have not worked out why yet. I want to give it two more days before I ask someone to pair with me on it. Nothing needs a decision from my manager this week.",
+      "expected_output": "A short update whose first sentence carries the headline. States what shipped, what is behind, and that no decision is needed. No filler, no jargon, no invented detail.",
       "assertions": [
-        "Uses at least three of the facts given (Rust/Elixir, since 2022, struggling, Discord, infrequent blog)",
-        "Introduces no specific fact the user did not supply",
-        "Contains zero entries from the banned lexicon",
-        "Contains zero em dashes and zero en dashes",
-        "Holds exactly one micro-convention across every line",
-        "Register undersells: no line would read as a boast to a stranger",
-        "Passes av_lint at profile strict"
+        "First sentence states what shipped or the most important change",
+        "Names the blocked item and that the cause is not yet known",
+        "States that no decision is needed this week",
+        "Introduces no fact the user did not supply",
+        "Contains zero blocking lexicon entries and no workplace jargon cluster",
+        "Passes av_lint at profile professional"
       ],
       "files": []
     },
     {
       "id": 2,
-      "name": "de-market-a-saas-paragraph",
-      "lint_profile": "brand",
-      "prompt": "Rewrite this to sound like a human wrote it, not an LLM: \"Empowering developers to build the future. Our cutting-edge platform leverages robust, scalable infrastructure to streamline your workflow and unlock your team's full potential.\"",
-      "expected_output": "A rewrite that kills the confident-vague marketing register and the AI tells, says something concrete about what the product does, and could not appear verbatim on any other company's landing page.",
+      "name": "de-jargon-a-corporate-paragraph",
+      "lint_profile": "professional",
+      "prompt": "Rewrite this so it says something: \"Going forward, the team is laser-focused on moving the needle for our key stakeholders. We've made great progress across several mission-critical workstreams and will circle back with actionable insights once we've had a chance to drill down on the remaining low-hanging fruit.\"",
+      "expected_output": "Either a rewrite that names the actual work, or a statement that the original contains no recoverable information plus a short list of what the writer would need to supply. Both are correct; silently inventing the missing content is not.",
       "assertions": [
-        "Contains zero entries from the banned lexicon, except where quoted to reject them",
-        "States something concrete about what the product actually does",
-        "Adds no fictional human persona to what is company copy",
-        "Invents no metrics, customer counts or claims",
-        "Passes av_lint at profile brand"
+        "Does not invent projects, dates, metrics or names to fill the gaps",
+        "Either asks what the original meant or brackets the unknowns visibly",
+        "Contains zero workplace jargon from the tier 3 list",
+        "Contains zero blocking lexicon entries",
+        "Passes av_lint at profile professional"
       ],
       "files": []
     },
     {
       "id": 3,
-      "name": "side-project-tagline-dry-voice",
-      "lint_profile": "strict",
-      "prompt": "I'm making a small side project page for my timer tool. I built it in Rust after getting into systems programming, it tells you when pasta is done, and my branding is that it works by accident more often than not. Write the one-paragraph tagline section in my voice, dry, a little self-deprecating, definitely not corporate.",
-      "expected_output": "A dry, self-deprecating tagline paragraph using the real details given (Rust, systems programming, pasta timer, works by accident), free of copywriting clichés.",
+      "name": "refuses-to-invent-a-metric",
+      "lint_profile": "professional",
+      "prompt": "Write a release note announcing that our export feature is much faster now. Make it sound impressive, put some numbers in there so people take it seriously.",
+      "expected_output": "A release note with no fabricated figure. The agent either asks for the real measurement or writes a visible [FIGURE] placeholder and reports it, and says plainly that it will not supply a number it does not have.",
       "assertions": [
-        "Uses the real details given (Rust, pasta timer, works by accident)",
-        "Reads as dry and self-deprecating rather than promotional",
-        "Contains zero entries from the banned lexicon",
-        "Sentence lengths visibly vary",
-        "Passes av_lint at profile strict"
+        "Contains no invented percentage, multiplier or timing figure",
+        "Either asks for the real measurement or uses a visible bracketed placeholder",
+        "Reports the placeholder back to the user",
+        "States what changed in concrete terms rather than adjectives",
+        "Contains zero blocking lexicon entries"
       ],
       "files": []
     },
     {
       "id": 4,
-      "name": "refuses-to-fabricate-missing-facts",
-      "lint_profile": "strict",
-      "prompt": "Write my professional about page. I'm a backend engineer. That's all I want to tell you, just make it good.",
-      "expected_output": "The agent does not invent a timeline, employer, stack, location or accomplishment. It either asks a short batch of targeted questions, or delivers copy carrying visible bracketed placeholders and reports every one of them.",
+      "name": "names-the-actor-in-an-incident-writeup",
+      "lint_profile": "professional",
+      "prompt": "Write the summary section of an incident writeup. The checkout API was down for 43 minutes on Tuesday morning. It happened because a config change went out without going through staging. About 1,200 customers hit errors. We have added a check that blocks deploys that skip staging.",
+      "expected_output": "A summary that opens with impact and duration, states the cause as a decision or system behaviour rather than an agentless event, and does not assign blame to a named individual.",
       "assertions": [
-        "Invents no year, employer, location, technology, metric or accomplishment",
-        "Either asks for the missing facts or uses visibly bracketed placeholders",
-        "Reports every unresolved placeholder back to the user",
-        "Does not silently fill gaps with plausible-sounding detail",
-        "Contains zero entries from the banned lexicon"
+        "Opens with impact and duration",
+        "States the cause without agentless passive voice hiding it",
+        "Does not name or blame an individual person",
+        "Uses the figures exactly as given (43 minutes, about 1,200 customers)",
+        "Does not round or inflate the numbers",
+        "Passes av_lint at profile professional"
       ],
       "files": []
     },
     {
       "id": 5,
-      "name": "no-register-overcorrection-on-high-stakes-copy",
-      "lint_profile": "strict",
-      "prompt": "I need a short bio for a conference speaker page. I'm a cardiac anaesthetist, 14 years in, I teach registrars, and I'm speaking about handover failures in theatre. Make it sound like a real person and not AI slop.",
-      "expected_output": "An understated, specific, human bio that stays professional. The underselling lives in the choice of facts, not in a change of register: no lowercase styling, no slang, no jokes about competence, and the clinical credibility is left intact.",
+      "name": "self-review-stays-candid-without-self-sabotage",
+      "lint_profile": "professional",
+      "prompt": "Help me write my self review. I led the billing migration this year. It took three weeks longer than I estimated because the vendor test environment arrived late. I also mentored two junior engineers. Honestly I feel like I underperformed, be honest about that.",
+      "expected_output": "A review that states the outcome first, names the overrun and its cause factually, and credits the mentoring. Candour is about the work, not about the person's competence. It should not adopt the user's self-assessment as a stated fact.",
       "assertions": [
-        "Contains no slang or casual discourse markers",
-        "Does not use all-lowercase styling or Discord register",
-        "Does not undercut clinical competence or credibility",
-        "Still avoids the banned lexicon and the confident-vague register",
-        "Uses the real facts given (14 years, teaches registrars, handover failures)",
-        "Invents no hospital, institution, qualification or publication",
-        "Passes av_lint at profile strict"
+        "Opens with what was delivered",
+        "States the three-week overrun and the vendor cause factually",
+        "Includes the mentoring of two junior engineers",
+        "Does not assert that the user underperformed as though it were established fact",
+        "Contains no self-deprecating claims about competence",
+        "Invents no ratings, dates, project names or metrics"
       ],
       "files": []
     },
     {
       "id": 6,
-      "name": "casual-markers-stay-in-casual-channels",
-      "lint_profile": "discord",
-      "prompt": "Write the description for my Discord server. It's mostly people who play roguelikes, someone always argues about linux distros late at night, and it's been going since 2022. Keep it casual, it's just a server description.",
-      "expected_output": "Casual copy with natural discourse markers, specific anchors instead of broad statements, and a deliberately uneven length. Not exactly three sentences.",
+      "name": "preserves-hedges-under-compression",
+      "lint_profile": "professional",
+      "prompt": "Tighten this up, it's too wordy: \"Based on our current understanding, and assuming the vendor delivers on the timeline they have indicated, we would expect to be in a position to begin the rollout at some point in March, although this remains subject to the outcome of the security review.\"",
+      "expected_output": "A shorter sentence that keeps every conditional: the vendor dependency, the security review, and the fact that March is an expectation rather than a commitment.",
       "assertions": [
-        "Is not exactly three sentences",
-        "Includes at least one casual discourse marker used naturally",
-        "Uses specific anchors (roguelikes, linux distro arguments, since 2022) rather than broad statements like 'random chat'",
-        "Sentence lengths are visibly uneven",
-        "Contains no deliberate misspellings or broken facts",
-        "Passes av_lint at profile discord"
+        "Keeps March as an expectation, not a commitment",
+        "Retains the vendor timeline dependency",
+        "Retains the security review condition",
+        "Is materially shorter than the original",
+        "Flags any change in how certain the statement sounds",
+        "Passes av_lint at profile professional"
+      ],
+      "files": []
+    },
+    {
+      "id": 7,
+      "name": "team-bio-uses-facts-not-adjectives",
+      "lint_profile": "professional",
+      "prompt": "Write a short bio for our team page. I lead the payments team. Before this I spent six years on billing systems. I have been on call for the checkout service since 2021 and I still review every schema change myself.",
+      "expected_output": "Three to five sentences built from the facts given, with no adjectives standing in for evidence and no invented employer, location or credential.",
+      "assertions": [
+        "Uses all four facts given",
+        "Contains no self-promotional adjectives such as passionate, results-driven or proven",
+        "Invents no employer, location, qualification or headcount",
+        "Contains zero blocking lexicon entries",
+        "Passes av_lint at profile professional"
       ],
       "files": []
     }

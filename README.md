@@ -1,94 +1,101 @@
-# Authentic Voice
+# Plain Writing
 
-A reusable framework for writing copy that reads as one specific human being, rather than as
-a language model doing its best impression of a landing page.
+A prompt and a checker for writing that says the plain thing: status updates, proposals,
+release notes, incident writeups, performance reviews, team bios, announcements, and the
+pages you write under your own name.
 
-It ships as four things you can use independently:
-
-| Artifact | What it is | Use it when |
-|---|---|---|
-| `agent/PLAIN_WRITING.md` | **Work-safe prompt.** Plain-language writing for status updates, proposals, release notes, reviews, bios. No slang, no casual-social register, no AI-detection framing. | Writing at work, or under your own name. Start here. |
-| `agent/AUTHENTIC_VOICE.md` | The personal-voice master prompt. Informal register, casual-social rules. | Personal sites and hobby projects only. See the scope warning below. |
-| `agent/AUTHENTIC_VOICE_PORTABLE.md` | The same prompt, generated, with no repository references. | You are handing the prompt to someone who has only that file. |
-| `agent/SYSTEM_PROMPT.txt` | The enforcement core, condensed. | Your system-prompt budget is small. |
-| `agent/INTAKE.md` | The fact-gathering questionnaire. | Before writing anything for a real person. |
-| `skills/authentic-voice/SKILL.md` | Claude Code / Amp / opencode skill. | You want it to load automatically on relevant requests. |
-| `tools/av_lint.py` | Zero-dependency checker for the mechanical rules. | Every draft, and in CI. |
+| Artifact | What it is |
+|---|---|
+| `agent/PLAIN_WRITING.md` | The prompt. Self-contained, model-agnostic. Paste it anywhere. |
+| `skills/plain-writing/SKILL.md` | The same rules as a skill, for Claude Code, Amp and opencode. |
+| `tools/av_lint.py` | Zero-dependency checker for the mechanical rules. |
+| `evals/evals.json` | Seven evals with explicit assertions. |
 
 ## The problem
 
-Language models optimise for inoffensiveness, and inoffensiveness converges. Ask any model
-for a personal bio and it reaches for the same sentence: *"Empowering developers to build the
-future."* That line is not bad because it is ugly. It is bad because it is identical across
-ten thousand authors and therefore carries no information about any of them.
+Two failures produce most bad writing, and they look opposite while doing the same damage.
 
-A human page is the residue of one person's constraints: what they actually did, what
-actually broke, what they are willing to admit. This framework's whole job is to pull that
-residue in and then get out of the way.
+The first is **filler**: language that occupies space without carrying information. *"Going
+forward, we are laser-focused on moving the needle for key stakeholders."* Strip the words
+and nothing is left.
+
+The second is **the confident blur**: claims pitched so broadly they cannot be checked.
+*"A proven track record of delivering transformative outcomes."* It sounds like a fact and
+behaves like a mood.
+
+Language models produce both by default, because both are safe. Safe language is
+indistinguishable across authors, and a sentence that could have been written by anyone
+about anything tells the reader nothing.
 
 ## Quick start
 
-**As a standalone agent**, paste `agent/AUTHENTIC_VOICE.md` into any model's system prompt,
-custom instructions, project or Gem. Then ask for the copy you want.
+**As a prompt**, paste `agent/PLAIN_WRITING.md` into any model's system prompt, custom
+instructions, project or Gem. Nothing else is needed: no repository, no scripts, no
+attachments. About 4,000 words.
 
-**Handing it to someone else**, send `agent/AUTHENTIC_VOICE_PORTABLE.md` instead. It is
-generated from the master by `tools/make_portable.py` and is identical in every rule,
-constraint, dial, channel profile, lexicon entry and worked example. The only difference is
-that it never instructs the reader to run a script from a repository they may not have: the
-optional linter section becomes a manual counting procedure, and the guidance for small local
-models points at that procedure rather than at a file. The test suite proves the two editions
-differ in exactly three section bodies and two headings, and nowhere else.
-
-```bash
-python3 tools/make_portable.py          # regenerate after editing the master
-python3 tools/make_portable.py --check  # fail if the committed copy is stale
-python3 tools/make_portable.py --diff   # show pending changes
-```
-
-**As a skill**, the `skills/authentic-voice/SKILL.md` file loads automatically on requests
-like "make this sound human" or "write my about page". Mirrors for `.claude/`, `.amp/` and
-`.opencode/` are kept byte-identical and are verified by the test suite.
+**As a skill**, `skills/plain-writing/SKILL.md` loads automatically on requests like "cut the
+fluff" or "write my status update". Mirrors for `.claude/`, `.amp/` and `.opencode/` are kept
+byte-identical and verified by the test suite.
 
 **As a check**, run the linter over any draft:
 
 ```bash
-python3 tools/av_lint.py draft.md --profile strict
-python3 tools/av_lint.py --stdin --profile discord < draft.md
-python3 tools/av_lint.py draft.md --profile strict --convention '^[^A-Z]*$'
+python3 tools/av_lint.py draft.md
+python3 tools/av_lint.py draft.md --profile professional --quiet
+python3 tools/av_lint.py --stdin < draft.md
 python3 tools/av_lint.py draft.md --json
 ```
 
-Exit code 0 means the mechanical checks passed. Profiles are `professional` (work writing:
-status updates, proposals, release notes, reviews, bios), `strict` (personal site, bio,
-tagline), `standard` (README, longer prose), `brand` (company copy) and `discord` (casual
-social).
+Exit code 0 means the mechanical checks passed. Profiles are `professional` (the default:
+work writing), `strict` (short personal copy, bios, taglines), `standard` (longer prose) and
+`brand` (company copy).
+
+## What the prompt enforces
+
+- **Lead with the conclusion.** The first sentence carries the point. Context comes after.
+- **Never invent a fact.** No date, name, employer, metric or deadline the user did not
+  supply. Unknowns become visible `[PLACEHOLDERS]` that get reported back.
+- **Never invent a metric.** Figures stay exactly as given, unrounded, with a source named
+  where one is needed.
+- **Name who does what.** Passive voice is fine when the actor is genuinely irrelevant, and
+  wrong when it is hiding a name the reader needs.
+- **Replace categories with instances.** Not "various stakeholders" but "the two teams that
+  call this API".
+- **Preserve meaning under compression.** Cutting filler must never turn "we expect to ship
+  in March" into "we ship in March". Any change in certainty is reported.
+- **Be candid about the work, not your competence.** "The migration took three weeks longer
+  than I estimated" is professional. "I am bad at estimating" is a review you wrote for
+  someone else.
+
+Ten document types carry their own register settings, from status update to incident writeup
+to speaker bio.
 
 ## What the linter checks
 
 | Check | Catches | Blocking |
 |---|---|---|
-| `banned-lexicon` | 76 marketing and AI-register phrases | yes |
+| `banned-lexicon` | 76 marketing phrases: empower, leverage, seamless, transformative | yes |
+| `workplace-jargon` | density of corporate filler: circle back, low-hanging fruit (47 terms) | over threshold |
+| `suspect-lexicon` | density of inflated modifiers: crucial, robust, comprehensive | over threshold |
 | `formulaic-structure` | "whether you're X or Y", "it's not just X, it's Y", "in a world where" | yes |
 | `dash-overuse` | em and en dashes over the profile's budget | yes |
-| `burstiness` | uniform sentence rhythm, by coefficient of variation | profile-dependent |
 | `concrete-anchors` | copy with no real date, count, tool or name in it | yes |
 | `fake-precision` | unsourced percentages and multipliers | profile-dependent |
-| `suspect-lexicon` | density of inflated modifiers | over threshold |
-| `workplace-jargon` | density of corporate filler (`circle back`, `low-hanging fruit`, 47 terms) | over threshold |
+| `rhythm-variation` | uniform sentence length, by coefficient of variation | profile-dependent |
+| `unresolved-placeholders` | brackets that would ship silently | warning |
 | `quirk-stacking` | more than two competing stylistic conventions | yes |
-| `discourse-markers` | casual markers missing where the channel expects them | discord only |
 | `micro-convention` | lines that break a convention you declared | when declared |
 | `uniform-openers` | most sentences starting with the same word | warning |
 | `rule-of-three` | triad scaffolding | warning |
 
-It deliberately does not judge whether the copy is *true*, or whether it sounds like the
-person. Those are the checks that matter most, and they stay human.
+It deliberately does not judge whether the writing is *true*, whether the facts are yours, or
+whether the judgement is sound. Those are the checks that matter most, and they stay human.
 
 ## Verification
 
 ```bash
-python3 tools/test_av_lint.py        # 72 tests: every check, positive and negative
-python3 tools/test_framework_sync.py # 48 tests: framework integrity, see below
+python3 tools/test_av_lint.py        # 70 tests: every check, positive and negative
+python3 tools/test_framework_sync.py # 29 tests: repository integrity
 ```
 
 `test_av_lint.py` gives each check a fixture that must trip it and a fixture that must not,
@@ -96,108 +103,46 @@ so no check can rot into a no-op or a false-positive machine.
 
 `test_framework_sync.py` enforces the claims this repository makes about itself:
 
-- The banned lexicon in the master prompt is the same set as the one in the linter. If either
-  drifts, the build fails.
+- All three lexicon tiers in the prompt are the same sets as in the checker, and are disjoint.
+- Every lexicon entry actually matches itself, so no entry can silently never fire.
 - Every skill mirror is byte-identical to the canonical file.
-- No framework document contains an em dash, since they tell other people not to use them.
+- No document contains an em dash, since they tell other people not to use them.
+- The prompt references no file, so it works pasted into a chat window alone.
 - Every worked "after" example passes the linter, and every "before" example fails it.
-- Every eval declares assertions and a lint profile.
-- The paper count claimed in this README equals the number of PDFs on disk.
-- No file promises an outcome against an AI detector.
-- The portable edition is current, contains no repository references, and differs
-  from the master only in the three section bodies and two headings declared in
-  `tools/make_portable.py`.
+- Every eval declares assertions and a known lint profile.
+- Counts stated in this README match the code.
+- No casual-social register, slang dial, or text-detection framing is present anywhere.
 
-### Measured effect on the sample corpus
+That last one is a regression test, not a nicety. See below.
 
-Running the linter over the six stored eval outputs in `authentic-voice-workspace/`:
+## Two calibration decisions
 
-| Configuration | Passing |
-|---|---|
-| With the skill | 3 of 3 |
-| Without the skill | 0 of 3 |
+**Rhythm variation does not block work writing.** Measured over fixtures kept in the test
+suite, uniform machine-written business prose sits at a coefficient of variation of 0.09 to
+0.19, while a terse human status update sits at 0.24. That gap is too narrow to gate on, so
+the professional profile reports rhythm rather than failing it. It still blocks on personal
+copy, where sentence fragments are actually available to you.
 
-The without-skill outputs fail on em dash usage (evals 1 and 3) and on having no concrete
-anchor at all (eval 2). This is a mechanical measurement of mechanical properties, on three
-samples. It is not a claim about how the copy reads, and the sample is far too small to
-support a percentage.
+**The jargon budget tolerates an isolated term.** It started at one per 400 words, which
+fired on a normal update containing a single "quick win". A checker that cries wolf gets
+switched off and then catches nothing. It is now one per 200 words, which still fails
+clusters.
 
-## Research foundation
+## History
 
-Built on **4 peer-reviewed research papers** on the measurable differences between human and
-machine text. The craft rules map onto findings, not onto intuition:
+This repository previously held a personal-voice writing framework built around research on
+machine-text detection, including a casual-social channel with slang and deliberately loose
+grammar. That material has been removed. It was fine for a hobby homepage and wrong for
+workplace writing: a bio that undercuts your own competence circulates further than you do,
+deliberately loose grammar has no place in a document others plan around, and detection
+framing reads badly next to a professional name.
 
-| Paper | Finding used | Rule it supports |
-|---|---|---|
-| `arxiv-2306.05524.pdf` | GPABench2, 2.8M comparative samples. Polished text is hardest to separate from human. | Why light editing of model prose is not enough |
-| `arxiv-2401.04120-Discord-Detection.pdf` | n=335. AI social text clusters around prompt-shaped structure, notably fixed sentence counts. | Casual-channel rules, section 6.1 |
-| `arxiv-2510.05136-AIGT-Survey.pdf` | 8 domains, 11 models. Human text shows greater variability; newer models homogenise. | Burstiness, lexical variety |
-| `uncovered-kdir2023.pdf` | Stylometry separates AI news text at 70.4% accuracy, weighted F1 85.6%. | Why style, not topic, is the signal |
+The current prompt is a separate artifact rather than a filtered copy of the old one. Tests
+assert that the removed material cannot return.
 
-Full index, licences and per-paper findings: `research-papers-index.md`. Every paper is used
-under its own licence, and no paper text is reproduced in this repository.
+Note that deleted files remain in this repository's git history. If they need to be gone
+entirely, that requires rewriting history or starting a fresh repository.
 
-**On the numbers:** the 2.8M figure is the sample count of one benchmark, not an aggregate
-across all four papers. Earlier versions of this README claimed seven papers and implied the
-sample counts combined. They do not, and they did not.
+## Licence
 
-## Which prompt to use
-
-**Use `agent/PLAIN_WRITING.md` for work, and for anything under your own name.** It covers
-status updates, proposals, release notes, incident writeups, performance reviews, team bios,
-announcements and personal profiles. Its rules are ordinary craft: lead with the conclusion,
-name the actor, prefer the concrete noun, keep numbers honest, cut filler.
-
-**`agent/AUTHENTIC_VOICE.md` is the personal-voice prompt, and it is not work-safe.** It
-carries a casual-social channel with slang and deliberately loose grammar, defaults toward
-self-deprecation, and is framed around research on AI-text detection. That framing is fine
-for a hobby homepage and wrong for a workplace: a bio that undercuts your own competence
-circulates, and a tool that reads as detector evasion is not something to have near your
-name professionally. Its register dials and eval 5 limit the damage, but the safer answer at
-work is to use the other file.
-
-The two do not share text. `PLAIN_WRITING.md` is a separate artifact with its own rules,
-examples and audit gate, not a filtered copy.
-
-## Scope and limits
-
-This framework produces copy that reads as human. It makes **no claim about the behaviour of
-any AI-detection tool**, and nothing here should be presented as doing so. Detector behaviour
-is unstable, varies by vendor, and is not the objective.
-
-Do not use it for reference documentation, safety or legal or medical notices, error
-messages, or anywhere a reader must certify they wrote the text themselves. The master prompt
-states this as a hard constraint and refuses those requests.
-
-The most common misuse is overcorrection: applying a lowercase, slangy register to someone
-whose actual voice is nothing like that. A surgeon's bio in Discord voice is a costume, not
-authenticity. The register dials in section 5 of the master prompt exist to prevent this, and
-eval 5 tests for it.
-
-## Layout
-
-```
-agent/
-  PLAIN_WRITING.md        work-safe prompt, self-contained
-  AUTHENTIC_VOICE.md      personal-voice prompt, self-contained
-  AUTHENTIC_VOICE_PORTABLE.md  generated, zero repository references
-  SYSTEM_PROMPT.txt       condensed enforcement core
-  INTAKE.md               fact-gathering questionnaire
-skills/authentic-voice/   canonical skill
-.claude/ .amp/ .opencode/ byte-identical mirrors
-tools/
-  av_lint.py              the checker
-  make_portable.py        derives the portable edition from the master
-  test_av_lint.py         72 tests over the checker
-  test_framework_sync.py  48 tests over the framework itself
-evals/evals.json          6 evals with explicit assertions
-research papers/          4 source PDFs
-research-papers-index.md  index, licences, findings
-authentic-voice-workspace/ stored eval runs and review tooling
-```
-
-## Licence and attribution
-
-Research papers are used under their own licences (arXiv CC BY 4.0; SciTePress open access)
-and are not redistributed as text. The framework, linter and tests in this repository are
-original work.
+Original work.
